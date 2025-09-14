@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Invite Link Generator — Fixed Base (Mobile)</title>
+  <style>
+    :root{
+      --ink:#1f2328; --muted:#596273; --bg:#fafafa; --card:#fff;
+      --accent:#6d5bd0; --border:#e8e9f1;
+    }
+    *{box-sizing:border-box}
+    body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;background:var(--bg);color:var(--ink)}
+    header{padding:14px 16px;position:sticky;top:0;background:#fff;z-index:5;box-shadow:0 6px 18px rgba(0,0,0,.06)}
+    h1{font-size:clamp(1rem,2.5vw,1.25rem);margin:0}
+    main{max-width:900px;margin:0 auto;padding:12px}
+    .card{background:var(--card);padding:16px;border-radius:14px;box-shadow:0 10px 24px rgba(0,0,0,.06)}
+    label{font-weight:600;display:block;margin:10px 0 6px}
+    input,textarea{width:100%;padding:14px;border:1px solid var(--border);border-radius:12px;font-size:16px;background:#fff}
+    input[readonly]{background:#f8f9ff}
+    textarea{min-height:160px;resize:vertical}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .tools{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+    button{padding:14px;border:1px solid var(--border);border-radius:12px;background:#fff;cursor:pointer;flex:1;min-width:140px}
+    button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+    .out{margin-top:14px;background:#f3f0ff;border:1px dashed #c7b7f5;padding:12px;border-radius:12px;white-space:pre-wrap;font-size:15px}
+    table{width:100%;border-collapse:collapse;margin-top:12px}
+    th,td{border:1px solid var(--border);padding:10px;text-align:left}
+    th{background:#f7f7ff}
+    .hint{color:var(--muted);font-size:.95rem;margin-top:6px}
+    @media (max-width: 820px){
+      .row{grid-template-columns:1fr}
+      .tools{gap:8px}
+      button{padding:13px}
+    }
+  </style>
+</head>
+<body>
+  <header><h1>Invite Link Generator</h1></header>
+  <main>
+    <section class="card">
+      <label>Base URL (fixed)</label>
+      <input id="base" value="https://skyeandcali.github.io/Invite" readonly />
+      <p class="hint">Links will be generated using this exact address.</p>
+
+      <div class="row" style="margin-top:10px">
+        <div>
+          <label for="names">Guest names (one per line)</label>
+          <textarea id="names"></textarea>
+        </div>
+        <div>
+          <label for="csv">Upload CSV (optional: header <code>name</code>)</label>
+          <input id="csv" type="file" accept=".csv" />
+          <p class="hint">You can paste names on the left, import a CSV, or both.</p>
+        </div>
+      </div>
+
+      <div class="tools">
+        <button class="primary" id="go">Generate Links</button>
+        <button id="copy">Copy All</button>
+        <button id="download">Download CSV</button>
+        <button id="clear">Clear</button>
+      </div>
+
+      <div id="output" class="out">Generated links will appear here…</div>
+
+      <table id="table" style="display:none">
+        <thead><tr><th>Name</th><th>Link</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </main>
+
+  <script>
+    const BASE = "https://skyeandcali.github.io/Invite";
+
+    function buildLink(name){
+      const url = new URL(BASE);
+      url.searchParams.set("to", name);
+      return url.toString();
+    }
+
+    async function parseCSV(file){
+      const text = await file.text();
+      const lines = text.split(/\r?\n/).filter(l=>l.length);
+      if (!lines.length) return [];
+      const headers = lines[0].split(",").map(h=>h.trim().toLowerCase());
+      const nameIdx = headers.indexOf("name");
+      if (nameIdx === -1) return [];
+      const rows = [];
+      for (let i=1;i<lines.length;i++){
+        const cols = lines[i].split(",");
+        const nm = (cols[nameIdx]||"").trim();
+        if (nm) rows.push({ name: nm });
+      }
+      return rows;
+    }
+
+    function renderRows(items){
+      const tbody = document.querySelector("#table tbody");
+      tbody.innerHTML = "";
+      const lines = items.map(({name, link})=>{
+        const tr = document.createElement("tr");
+        tr.innerHTML = \`<td>\${name}</td><td><a href="\${link}" target="_blank" rel="noopener">\${link}</a></td>\`;
+        tbody.appendChild(tr);
+        return `• ${name}: ${link}`;
+      });
+      document.getElementById("table").style.display = items.length ? "table" : "none";
+      document.getElementById("output").textContent = items.length ? lines.join("\n") : "Generated links will appear here…";
+    }
+
+    document.getElementById("go").addEventListener("click", async ()=>{
+      let names = document.getElementById("names").value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+      const file = document.getElementById("csv").files[0];
+      if (file){
+        const rows = await parseCSV(file);
+        const csvNames = rows.map(r=> r.name).filter(Boolean);
+        names = names.concat(csvNames);
+      }
+      const unique = [...new Set(names)]; // de-dupe
+      const items = unique.map(n => ({ name:n, link: buildLink(n) }));
+      renderRows(items);
+      // smooth scroll to output on mobile
+      document.getElementById("output").scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+
+    document.getElementById("copy").addEventListener("click", ()=>{
+      const text = document.getElementById("output").textContent;
+      if (!text || /Generated links will appear here/.test(text)) { alert("Nothing to copy yet."); return; }
+      navigator.clipboard.writeText(text).then(()=> alert("Copied!"));
+    });
+
+    document.getElementById("download").addEventListener("click", ()=>{
+      const rows = [["Name","Link"]];
+      document.querySelectorAll("#table tbody tr").forEach(tr=>{
+        const tds = tr.querySelectorAll("td");
+        rows.push([tds[0].textContent, tds[1].textContent]);
+      });
+      const csv = rows.map(r=> r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
+      const blob = new Blob([csv], {type:"text/csv"});
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "invite-links.csv";
+      a.click();
+    });
+
+    document.getElementById("clear").addEventListener("click", ()=>{
+      document.getElementById("names").value = "";
+      document.getElementById("csv").value = "";
+      document.getElementById("table").style.display = "none";
+      document.getElementById("output").textContent = "Generated links will appear here…";
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  </script>
+</body>
+</html>
