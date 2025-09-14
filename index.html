@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Invite Link Generator — SIMPLE</title>
+  <style>
+    :root{ --ink:#111827; --muted:#6b7280; --bg:#fafafa; --card:#ffffff; --border:#e5e7eb; --accent:#4f46e5; }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+    header{position:sticky;top:0;background:#fff;box-shadow:0 6px 18px rgba(0,0,0,.06);padding:14px 16px;z-index:5}
+    h1{margin:0;font-size:clamp(1rem,2.5vw,1.25rem)}
+    main{max-width:800px;margin:0 auto;padding:12px}
+    .card{background:var(--card);padding:16px;border-radius:14px;box-shadow:0 10px 24px rgba(0,0,0,.06)}
+    label{display:block;font-weight:600;margin:10px 0 6px}
+    input,textarea{width:100%;padding:14px;border:1px solid var(--border);border-radius:12px;font-size:16px;background:#fff}
+    input[readonly]{background:#f8f9ff}
+    textarea{min-height:180px;resize:vertical}
+    .btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+    button{flex:1;min-width:140px;padding:14px;border-radius:12px;border:1px solid var(--border);background:#fff;cursor:pointer}
+    button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+    .out{margin-top:14px;background:#f3f4ff;border:1px dashed #c7d2fe;padding:12px;border-radius:12px;white-space:pre-wrap;font-size:15px}
+    ul{list-style:none;padding:0;margin:10px 0 0}
+    li{padding:10px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;background:#fff;word-break:break-all}
+    a{color:#1d4ed8;text-decoration:none}
+    a:active{opacity:.8}
+  </style>
+</head>
+<body>
+  <header><h1>Invite Link Generator</h1></header>
+  <main>
+    <section class="card">
+      <label>Base URL (fixed)</label>
+      <input id="base" value="https://skyeandcali.github.io/Invite" readonly />
+
+      <label for="names" style="margin-top:12px">Guest names (one per line)</label>
+      <textarea id="names" placeholder=""></textarea>
+
+      <div class="btns">
+        <button class="primary" id="go">Generate Links</button>
+        <button id="copy">Copy All</button>
+        <button id="clear">Clear</button>
+      </div>
+
+      <div class="out" id="outBox">Generated links will appear below…</div>
+      <ul id="list"></ul>
+    </section>
+  </main>
+
+  <script>
+    const BASE = "https://skyeandcali.github.io/Invite";
+
+    function buildLink(name){
+      // Rely on URLSearchParams to encode; do NOT double-encode
+      const url = new URL(BASE);
+      url.searchParams.set("to", name);
+      return url.toString();
+    }
+
+    function generate(){
+      const raw = document.getElementById("names").value;
+      const names = raw.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+      const outBox = document.getElementById("outBox");
+      const list = document.getElementById("list");
+      list.innerHTML = "";
+      if(!names.length){
+        outBox.textContent = "Add at least one name above, one per line.";
+        return;
+      }
+      const unique = [...new Set(names)];
+      const lines = [];
+      unique.forEach(n=>{
+        const link = buildLink(n);
+        const li = document.createElement("li");
+        li.innerHTML = `<strong>${n}</strong><br><a href="${link}" target="_blank" rel="noopener">${link}</a>`;
+        list.appendChild(li);
+        lines.push(`${n}: ${link}`);
+      });
+      outBox.textContent = "Done! Tap a link to open it, or Copy All.";
+      return lines.join("\n");
+    }
+
+    document.getElementById("go").addEventListener("click", ()=>{
+      const text = generate();
+      if(text){ document.getElementById("list").scrollIntoView({behavior:"smooth"}); }
+    });
+
+    document.getElementById("copy").addEventListener("click", ()=>{
+      const listText = Array.from(document.querySelectorAll("#list li")).map(li=>li.textContent.replace(/\s+/g,' ').trim()).join("\n");
+      if(!listText){ alert("Nothing to copy yet."); return; }
+      navigator.clipboard.writeText(listText).then(()=> alert("Copied!"));
+    });
+
+    document.getElementById("clear").addEventListener("click", ()=>{
+      document.getElementById("names").value = "";
+      document.getElementById("list").innerHTML = "";
+      document.getElementById("outBox").textContent = "Generated links will appear below…";
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  </script>
+</body>
+</html>
