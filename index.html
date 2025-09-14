@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Invite Link Generator — Bulk</title>
+  <style>
+    body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;padding:20px;background:#fafafa;color:#222}
+    .card{max-width:980px;margin:0 auto;background:#fff;padding:16px;border-radius:12px;box-shadow:0 10px 24px rgba(0,0,0,.08)}
+    h1{font-size:1.2rem;margin:0 0 12px}
+    label{font-weight:600;display:block;margin:10px 0 6px}
+    input,textarea{width:100%;padding:10px;border:1px solid #e7e7e7;border-radius:10px;font-size:1rem;background:#fff}
+    textarea{min-height:140px}
+    button{padding:10px 14px;border:none;border-radius:10px;background:#BBA5E3;font-weight:700;cursor:pointer;margin-top:10px}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .out{margin-top:14px;background:#f6f6ff;border:1px dashed #c9c6f0;padding:10px;border-radius:10px;white-space:pre-wrap}
+    .tools{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+    table{width:100%;border-collapse:collapse;margin-top:10px}
+    th,td{border:1px solid #eee;padding:8px;text-align:left}
+    th{background:#faf8ff}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Invite Link Generator — Bulk</h1>
+    <label>Base URL of your hosted invite (index.html)</label>
+    <input id="base" placeholder="https://your-username.github.io/your-repo/index.html" />
+
+    <div class="row">
+      <div>
+        <label>Guest names (one per line)</label>
+        <textarea id="names" placeholder="Alex Monterubio
+Sam Taylor
+Jordan & Jamie"></textarea>
+      </div>
+      <div>
+        <label>Upload CSV (optional: column header 'name')</label>
+        <input id="csv" type="file" accept=".csv" />
+        <label>Optional defaults</label>
+        <div class="row">
+          <input id="kids" placeholder="kids e.g. 1" />
+          <input id="adults" placeholder="adults e.g. 2" />
+        </div>
+        <input id="contact" placeholder="contact e.g. 07..., or email" />
+        <input id="allergy" placeholder="allergy note e.g. nut-free" />
+      </div>
+    </div>
+
+    <div class="tools">
+      <button id="go">Generate Links</button>
+      <button id="copy">Copy All</button>
+      <button id="download">Download CSV</button>
+    </div>
+
+    <div id="output" class="out">Generated links will appear here…</div>
+
+    <table id="table" style="display:none">
+      <thead><tr><th>Name</th><th>Link</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <script>
+    function buildLink(base, name, kids, adults, contact, allergy){
+      const url = new URL(base);
+      const p = url.searchParams;
+      p.set("to", name);
+      if(kids) p.set("kids", kids);
+      if(adults) p.set("adults", adults);
+      if(contact) p.set("contact", contact);
+      if(allergy) p.set("allergy", allergy);
+      return url.toString();
+    }
+
+    async function parseCSV(file){
+      const text = await file.text();
+      const lines = text.split(/\r?\n/).filter(Boolean);
+      const rows = [];
+      let headers = [];
+      if (lines.length){
+        headers = lines[0].split(",").map(h=>h.trim().toLowerCase());
+        for (let i=1;i<lines.length;i++){
+          const cols = lines[i].split(",");
+          const obj = {};
+          headers.forEach((h,idx)=> obj[h] = (cols[idx]||"").trim());
+          rows.push(obj);
+        }
+      }
+      return rows;
+    }
+
+    document.getElementById("go").addEventListener("click", async ()=>{
+      const base = document.getElementById("base").value.trim();
+      if(!base){ alert("Please enter your hosted invite URL first."); return; }
+      let namesInput = document.getElementById("names").value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+      const file = document.getElementById("csv").files[0];
+      if (file){
+        const rows = await parseCSV(file);
+        const csvNames = rows.map(r=> r.name).filter(Boolean);
+        namesInput = namesInput.concat(csvNames);
+      }
+      const kids = document.getElementById("kids").value.trim();
+      const adults = document.getElementById("adults").value.trim();
+      const contact = document.getElementById("contact").value.trim();
+      const allergy = document.getElementById("allergy").value.trim();
+
+      const tbody = document.querySelector("#table tbody");
+      tbody.innerHTML = "";
+      const lines = namesInput.map(n => {
+        const link = buildLink(base, n, kids, adults, contact, allergy);
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${n}</td><td><a href="${link}" target="_blank">${link}</a></td>`;
+        tbody.appendChild(tr);
+        return `• ${n}: ${link}`;
+      });
+
+      document.getElementById("table").style.display = lines.length ? "table" : "none";
+      document.getElementById("output").textContent = lines.length ? lines.join("\n") : "No names entered.";
+    });
+
+    document.getElementById("copy").addEventListener("click", ()=>{
+      const text = document.getElementById("output").textContent;
+      if (!text || /No names/.test(text)) { alert("Nothing to copy yet."); return; }
+      navigator.clipboard.writeText(text).then(()=> alert("Copied!"));
+    });
+
+    document.getElementById("download").addEventListener("click", ()=>{
+      const rows = [["Name","Link"]];
+      document.querySelectorAll("#table tbody tr").forEach(tr=>{
+        const tds = tr.querySelectorAll("td");
+        rows.push([tds[0].textContent, tds[1].textContent]);
+      });
+      const csv = rows.map(r=> r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
+      const blob = new Blob([csv], {type:"text/csv"});
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "invite-links.csv";
+      a.click();
+    });
+  </script>
+</body>
+</html>
